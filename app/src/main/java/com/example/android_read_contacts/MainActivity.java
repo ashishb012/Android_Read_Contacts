@@ -22,6 +22,8 @@ public class MainActivity extends AppCompatActivity {
 
     private static final int REQUEST_READ_CONTACTS_PERMISSION = 100;
     private ListView contactsListView;
+    private Cursor cursor;
+    private SimpleCursorAdapter adapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -67,7 +69,7 @@ public class MainActivity extends AppCompatActivity {
         new Thread(() -> {
             try {
                 ContentResolver contentResolver = getContentResolver();
-                Cursor cursor = contentResolver.query(
+                cursor = contentResolver.query(
                         ContactsContract.Contacts.CONTENT_URI,
                         null,
                         null,
@@ -84,7 +86,7 @@ public class MainActivity extends AppCompatActivity {
                         int[] to = {android.R.id.text1};
 
                         // Use a SimpleCursorAdapter to display data in the ListView
-                        SimpleCursorAdapter adapter = new SimpleCursorAdapter(
+                        adapter = new SimpleCursorAdapter(
                                 this,
                                 android.R.layout.simple_list_item_1,
                                 cursor,
@@ -108,9 +110,6 @@ public class MainActivity extends AppCompatActivity {
                             Toast.makeText(this, "No contacts found.", Toast.LENGTH_LONG).show()
                     );
                 }
-                if (cursor != null) {
-                    cursor.close();
-                }
             } catch (Exception e) {
                 Log.e("Contacts", "Error loading contacts", e);
                 // Show a Toast on the UI thread
@@ -124,25 +123,38 @@ public class MainActivity extends AppCompatActivity {
     // Helper method to get phone numbers for a contact
     private String getPhoneNumbers(ContentResolver contentResolver, String contactId) {
         StringBuilder phoneNumbers = new StringBuilder();
-        Cursor phoneCursor = contentResolver.query(
-                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-                null,
-                ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " = ?",
-                new String[]{contactId},
-                null);
-        if (phoneCursor != null && phoneCursor.getCount() > 0) {
-            while (phoneCursor.moveToNext()) {
-                String phoneNumber = phoneCursor.getString(phoneCursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER));
-                phoneNumbers.append(phoneNumber).append(", ");
+        Cursor phoneCursor = null;
+        try {
+            phoneCursor = contentResolver.query(
+                    ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                    null,
+                    ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " = ?",
+                    new String[]{contactId},
+                    null);
+            if (phoneCursor != null && phoneCursor.getCount() > 0) {
+                while (phoneCursor.moveToNext()) {
+                    String phoneNumber = phoneCursor.getString(phoneCursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER));
+                    phoneNumbers.append(phoneNumber).append(", ");
+                }
             }
-        }
-        if (phoneCursor != null) {
-            phoneCursor.close();
+        } finally {
+            if (phoneCursor != null) {
+                phoneCursor.close();
+            }
         }
         // Remove the last comma and space if present
         if (phoneNumbers.length() > 2) {
             phoneNumbers.delete(phoneNumbers.length() - 2, phoneNumbers.length());
         }
         return phoneNumbers.toString();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (cursor != null) {
+            // Close the cursor here
+            cursor.close();
+        }
     }
 }
